@@ -4,13 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Career Doom</title>
-
-<!-- University emoji as favicon -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
-
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
     background: #000;
     display: flex;
@@ -20,22 +16,12 @@
     overflow: hidden;
     touch-action: none;
   }
-
   .game-wrapper {
     position: relative;
-    /* Will be scaled via JS for mobile */
     width: 800px;
     height: 600px;
-    transform-origin: top center;
   }
-
-  canvas {
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    display: block;
-  }
-
-  /* D-pad buttons — right side in grass zone */
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
   .dpad {
     position: absolute;
     right: 10px;
@@ -45,186 +31,101 @@
     gap: 10px;
     z-index: 10;
   }
-
   .dpad-btn {
-    width: 100px;
-    height: 100px;
-    background: rgba(255, 255, 255, 0.45);
-    border: 2px solid rgba(255, 255, 255, 0.65);
-    border-radius: 12px;
-    color: rgba(255, 255, 255, 0.85);
+    width: 100px; height: 100px;
+    background: rgba(255,255,255,0.35);
+    border: 2px solid rgba(255,255,255,0.55);
+    border-radius: 14px;
+    color: rgba(255,255,255,0.95);
     font-size: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
     transition: background 0.1s;
   }
-
-  .dpad-btn:active,
-  .dpad-btn.pressed {
-    background: rgba(255, 255, 255, 0.38);
-  }
-
-  /* START button */
+  .dpad-btn:active, .dpad-btn.pressed { background: rgba(255,255,255,0.55); }
   #start-btn {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 55px;
-    padding: 14px 48px;
-    background: rgba(255, 204, 0, 0.9);
-    border: 2px solid #ffcc00;
-    border-radius: 10px;
-    color: #000;
-    font-size: 20px;
-    font-weight: bold;
-    font-family: Arial, sans-serif;
-    cursor: pointer;
-    z-index: 10;
-    display: none;
-    user-select: none;
-    letter-spacing: 1px;
-    white-space: nowrap;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 55px; padding: 14px 48px;
+    background: rgba(255,204,0,0.9); border: 2px solid #ffcc00;
+    border-radius: 10px; color: #000; font-size: 20px; font-weight: bold;
+    font-family: Arial, sans-serif; cursor: pointer; z-index: 10;
+    display: none; user-select: none; letter-spacing: 1px; white-space: nowrap;
   }
-  #start-btn:active { background: rgba(255, 180, 0, 1); }
-
-  /* RESTART button */
+  #start-btn:active { background: rgba(255,180,0,1); }
   #restart-btn {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 150px;
-    padding: 14px 48px;
-    background: rgba(255, 204, 0, 0.9);
-    border: 2px solid #ffcc00;
-    border-radius: 10px;
-    color: #000;
-    font-size: 20px;
-    font-weight: bold;
-    font-family: Arial, sans-serif;
-    cursor: pointer;
-    z-index: 10;
-    display: none;
-    user-select: none;
-    letter-spacing: 1px;
-    white-space: nowrap;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 40px; padding: 14px 48px;
+    background: rgba(255,204,0,0.9); border: 2px solid #ffcc00;
+    border-radius: 10px; color: #000; font-size: 20px; font-weight: bold;
+    font-family: Arial, sans-serif; cursor: pointer; z-index: 10;
+    display: none; user-select: none; letter-spacing: 1px; white-space: nowrap;
   }
-  #restart-btn:active { background: rgba(255, 180, 0, 1); }
+  #restart-btn:active { background: rgba(255,180,0,1); }
 </style>
 </head>
 <body>
 <div class="game-wrapper" id="wrapper">
   <canvas id="game" width="800" height="600"></canvas>
-
   <div class="dpad">
     <button class="dpad-btn" id="btn-up">▲</button>
     <button class="dpad-btn" id="btn-down">▼</button>
   </div>
-
   <button id="start-btn">▶ &nbsp;START</button>
-  <button id="restart-btn"> &nbsp;RESTART</button>
+  <button id="restart-btn">RESTART</button>
 </div>
 
 <script>
-// ─── MOBILE SCALING ──────────────────────────────────────────
-// Detect screen size and scale the game wrapper to fit
+// ─── MOBILE SCALING ───────────────────────────────────────────
 function scaleGame() {
   const wrapper = document.getElementById('wrapper');
-  const scaleX = window.innerWidth / 800;
-  const scaleY = window.innerHeight / 600;
-  const scale  = Math.min(scaleX, scaleY);  // fit without cropping
-
-  wrapper.style.transform = 'scale(' + scale + ')';
+  const scale = Math.min(window.innerWidth/800, window.innerHeight/600);
+  const scaledW = 800*scale, scaledH = 600*scale;
+  wrapper.style.transform = 'scale('+scale+')';
   wrapper.style.transformOrigin = 'top left';
-
-  // Center it
-  const scaledW = 800 * scale;
-  const scaledH = 600 * scale;
   wrapper.style.position = 'absolute';
-  wrapper.style.left = ((window.innerWidth  - scaledW) / 2) + 'px';
-  wrapper.style.top  = ((window.innerHeight - scaledH) / 2) + 'px';
+  wrapper.style.left = ((window.innerWidth-scaledW)/2)+'px';
+  wrapper.style.top  = ((window.innerHeight-scaledH)/2)+'px';
 }
-
 scaleGame();
 window.addEventListener('resize', scaleGame);
-window.addEventListener('orientationchange', () => setTimeout(scaleGame, 200));
+window.addEventListener('orientationchange', ()=>setTimeout(scaleGame,200));
 
-// ─── CANVAS SETUP ────────────────────────────────────────────
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+const W=800, H=600;
 
-const W = 800, H = 600;
-
-// ─── BUTTON REFS ─────────────────────────────────────────────
+// ─── BUTTONS ──────────────────────────────────────────────────
 const startBtn   = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const btnUp      = document.getElementById('btn-up');
 const btnDown    = document.getElementById('btn-down');
 
-// UP button
-['mousedown','touchstart'].forEach(ev => {
-  btnUp.addEventListener(ev, (e) => {
+['mousedown','touchstart'].forEach(ev=>{
+  btnUp.addEventListener(ev,e=>{e.preventDefault();player.velocityY=-5;btnUp.classList.add('pressed');});
+});
+['mouseup','touchend','mouseleave','touchcancel'].forEach(ev=>{
+  btnUp.addEventListener(ev,e=>{e.preventDefault();if(player.velocityY<0)player.velocityY=0;btnUp.classList.remove('pressed');});
+});
+['mousedown','touchstart'].forEach(ev=>{
+  btnDown.addEventListener(ev,e=>{e.preventDefault();player.velocityY=+5;btnDown.classList.add('pressed');});
+});
+['mouseup','touchend','mouseleave','touchcancel'].forEach(ev=>{
+  btnDown.addEventListener(ev,e=>{e.preventDefault();if(player.velocityY>0)player.velocityY=0;btnDown.classList.remove('pressed');});
+});
+['click','touchstart'].forEach(ev=>{
+  startBtn.addEventListener(ev,e=>{
     e.preventDefault();
-    player.velocityY = -5;
-    btnUp.classList.add('pressed');
+    if(!gameStarted){gameStarted=true;startAudio();startBtn.style.display='none';}
   });
 });
-['mouseup','touchend','mouseleave','touchcancel'].forEach(ev => {
-  btnUp.addEventListener(ev, (e) => {
-    e.preventDefault();
-    if (player.velocityY < 0) player.velocityY = 0;
-    btnUp.classList.remove('pressed');
-  });
-});
-
-// DOWN button
-['mousedown','touchstart'].forEach(ev => {
-  btnDown.addEventListener(ev, (e) => {
-    e.preventDefault();
-    player.velocityY = +5;
-    btnDown.classList.add('pressed');
-  });
-});
-['mouseup','touchend','mouseleave','touchcancel'].forEach(ev => {
-  btnDown.addEventListener(ev, (e) => {
-    e.preventDefault();
-    if (player.velocityY > 0) player.velocityY = 0;
-    btnDown.classList.remove('pressed');
-  });
+['click','touchstart'].forEach(ev=>{
+  restartBtn.addEventListener(ev,e=>{e.preventDefault();restartGame();});
 });
 
-// Start button
-['click','touchstart'].forEach(ev => {
-  startBtn.addEventListener(ev, (e) => {
-    e.preventDefault();
-    if (!gameStarted) {
-      gameStarted = true;
-      startAudio();
-      startBtn.style.display = 'none';
-    }
-  });
-});
-
-// Restart button
-['click','touchstart'].forEach(ev => {
-  restartBtn.addEventListener(ev, (e) => {
-    e.preventDefault();
-    restartGame();
-  });
-});
-
-// ─── IMAGE LOADING ───────────────────────────────────────────
-function loadImage(src) {
-  const img = new Image();
-  img.src = src;
-  return img;
-}
-
-const images = {
+// ─── IMAGES ───────────────────────────────────────────────────
+function loadImage(src){const img=new Image();img.src=src;return img;}
+const images={
   background: loadImage('./background.png'),
   player:     loadImage('./player.png'),
   student:    loadImage('./student.png'),
@@ -233,317 +134,401 @@ const images = {
   purdue:     loadImage('./purdue.png'),
 };
 
-// ─── AUDIO ───────────────────────────────────────────────────
-let audioStarted = false;
+// ─── AUDIO ────────────────────────────────────────────────────
+let audioStarted=false;
+let screamSound=null;
 
-function playAudio(src, loop, volume) {
-  try {
-    const a = new Audio(src);
-    a.loop = loop || false;
-    a.volume = volume !== undefined ? volume : 1.0;
-    a.play().catch(() => {});
+function playAudio(src,loop,volume){
+  try{
+    const a=new Audio(src);
+    a.loop=loop||false;
+    a.volume=volume!==undefined?volume:1;
+    a.play().catch(()=>{});
     return a;
-  } catch(e) { return null; }
+  }catch(e){return null;}
 }
 
-function startAudio() {
-  if (audioStarted) return;
-  audioStarted = true;
-  playAudio('./RESUME.wav', true, 0.3);
-  playAudio('./scream.wav', true, 0.12);
+function startAudio(){
+  if(audioStarted)return;
+  audioStarted=true;
+  playAudio('./RESUME.wav',true,0.3);
+  screamSound=playAudio('./scream.wav',true,0.12);
 }
 
-// ─── GAME STATE ───────────────────────────────────────────────
-let gameStarted = false;
-let gameOver    = false;
-let gameWon     = false;
-let bgX         = 0;
-let floatTimer  = 0;
-let monstersCollected = 0;
-let spawnTimer  = 0;
-let spawnTimer2 = 0;
-let canSpawnTimer = 0;
+function stopScream(){
+  if(screamSound){
+    screamSound.pause();
+    screamSound.currentTime=0;
+    screamSound=null;
+  }
+}
 
-// ─── PLAYER ──────────────────────────────────────────────────
-const player = {
-  x: 100, y: 350,
-  velocityY: 0,
-  currentFrame: 0, animTimer: 0,
-  frameW: 32, frameH: 48,
-  drawW: 96, drawH: 144,
+// ─── STATE ────────────────────────────────────────────────────
+let gameStarted=false,gameOver=false,gameWon=false;
+let bgX=0,floatTimer=0,monstersCollected=0;
+let spawnTimer=0,spawnTimer2=0,canSpawnTimer=0;
+let winTimer=0;
+let confetti=[];
 
-  update() {
-    this.y += this.velocityY;
-    if (this.y < 180) this.y = 180;
-    if (this.y > 326) this.y = 326;
+function initConfetti(){
+  confetti=Array.from({length:80},()=>({
+    x:Math.random()*W, y:Math.random()*H,
+    vx:(Math.random()-0.5)*3,
+    vy:-(Math.random()*4+1),
+    size:Math.random()*7+2,
+    color:['#ffcc00','#ffffff','#ff6600','#00cc44','#ff4444','#3399ff','#ff99cc'][Math.floor(Math.random()*7)],
+    alpha:1, rot:Math.random()*Math.PI*2, rotSpeed:(Math.random()-0.5)*0.15,
+  }));
+}
+
+// ─── PLAYER ───────────────────────────────────────────────────
+const player={
+  x:100, y:350, velocityY:0,
+  currentFrame:0, animTimer:0,
+  frameW:32, frameH:48, drawW:96, drawH:144,
+  update(){
+    this.y+=this.velocityY;
+    if(this.y<180)this.y=180;
+    if(this.y>326)this.y=326;
     this.animTimer++;
-    if (this.animTimer >= 12) {
-      this.currentFrame = (this.currentFrame + 1) % 4;
-      this.animTimer = 0;
-    }
+    if(this.animTimer>=12){this.currentFrame=(this.currentFrame+1)%4;this.animTimer=0;}
   },
-
-  draw() {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(images.player,
-      this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-      this.x, this.y, this.drawW, this.drawH);
+  draw(){
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(images.player,this.currentFrame*this.frameW,0,this.frameW,this.frameH,this.x,this.y,this.drawW,this.drawH);
   }
 };
 
-// ─── STUDENTS ────────────────────────────────────────────────
-let students = [];
-
-function spawnStudent(fast) {
+// ─── STUDENTS ─────────────────────────────────────────────────
+let students=[];
+function spawnStudent(fast){
   students.push({
-    x: 800, y: player.y,
-    speed: fast ? 5 : 3,
-    isFast: fast,
-    currentFrame: 0, animTimer: 0, alive: true,
-    frameW: 32, frameH: 48, drawW: 96, drawH: 144,
-
-    update() {
-      this.x -= this.speed;
-      this.animTimer++;
-      if (this.animTimer >= (this.isFast ? 6 : 12)) {
-        this.currentFrame = (this.currentFrame + 1) % 4;
-        this.animTimer = 0;
-      }
-      if (this.x < -100) this.alive = false;
+    x:800, y:player.y, speed:fast?5:3, isFast:fast,
+    currentFrame:0, animTimer:0, alive:true,
+    frameW:32, frameH:48, drawW:96, drawH:144,
+    update(){
+      this.x-=this.speed; this.animTimer++;
+      if(this.animTimer>=(this.isFast?6:12)){this.currentFrame=(this.currentFrame+1)%4;this.animTimer=0;}
+      if(this.x<-100)this.alive=false;
     },
-
-    draw() {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.isFast ? images.student2 : images.student,
-        this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-        this.x, this.y, this.drawW, this.drawH);
+    draw(){
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(this.isFast?images.student2:images.student,this.currentFrame*this.frameW,0,this.frameW,this.frameH,this.x,this.y,this.drawW,this.drawH);
     }
   });
 }
 
-// ─── MONSTER CANS ────────────────────────────────────────────
-let cans = [];
-
-function spawnCan() {
-  const randomY = 330 + Math.floor(Math.random() * 80);
+// ─── CANS ─────────────────────────────────────────────────────
+let cans=[];
+function spawnCan(){
+  const randomY=330+Math.floor(Math.random()*80);
   cans.push({
-    x: 850, y: randomY,
-    currentFrame: 0, animTimer: 0, alive: true,
-    frameW: 32, frameH: 48, drawW: 48, drawH: 72,
-
-    update() {
-      this.x -= 2;
-      this.animTimer++;
-      if (this.animTimer >= 10) {
-        this.currentFrame = (this.currentFrame + 1) % 4;
-        this.animTimer = 0;
-      }
-      if (this.x < -100) this.alive = false;
+    x:850, y:randomY, currentFrame:0, animTimer:0, alive:true,
+    frameW:32, frameH:48, drawW:48, drawH:72,
+    update(){
+      this.x-=2; this.animTimer++;
+      if(this.animTimer>=10){this.currentFrame=(this.currentFrame+1)%4;this.animTimer=0;}
+      if(this.x<-100)this.alive=false;
     },
-
-    draw() {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(images.drink,
-        this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-        this.x, this.y, this.drawW, this.drawH);
+    draw(){
+      ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(images.drink,this.currentFrame*this.frameW,0,this.frameW,this.frameH,this.x,this.y,this.drawW,this.drawH);
     }
   });
 }
 
-// ─── COLLISION ───────────────────────────────────────────────
-function isCollidingStudent(s) {
-  const pL = player.x + 35, pR = player.x + 61;
-  const pT = player.y + 125, pB = player.y + 144;
-  const sL = s.x + 35, sR = s.x + 61;
-  const sT = s.y + 125, sB = s.y + 144;
-  return pL < sR && pR > sL && pT < sB && pB > sT;
+// ─── COLLISION ────────────────────────────────────────────────
+function isCollidingStudent(s){
+  return(player.x+35)<(s.x+61)&&(player.x+61)>(s.x+35)&&(player.y+125)<(s.y+144)&&(player.y+144)>(s.y+125);
+}
+function isCollidingCan(c){
+  return player.x+40<c.x+40&&player.x+60>c.x+8&&player.y+100<c.y+72&&player.y+144>c.y+10;
 }
 
-function isCollidingCan(c) {
-  return player.x + 40 < c.x + 40
-      && player.x + 60 > c.x + 8
-      && player.y + 100 < c.y + 72
-      && player.y + 144 > c.y + 10;
+// ─── TRIGGER WIN/LOSE ─────────────────────────────────────────
+function triggerWin(){
+  gameWon=true; monstersCollected=10;
+  restartBtn.style.display='block';
+  initConfetti(); stopScream();
+}
+function triggerLose(){
+  gameOver=true;
+  restartBtn.style.display='block';
+  stopScream();
 }
 
-// ─── RESTART ─────────────────────────────────────────────────
-function restartGame() {
-  gameOver = false; gameWon = false; gameStarted = true;
-  bgX = 0; monstersCollected = 0;
-  spawnTimer = 0; spawnTimer2 = 0; canSpawnTimer = 0;
-  students = []; cans = [];
-  player.x = 100; player.y = 350;
-  player.velocityY = 0; player.currentFrame = 0;
-  restartBtn.style.display = 'none';
-  startBtn.style.display = 'none';
+// ─── RESTART ──────────────────────────────────────────────────
+function restartGame(){
+  gameOver=false; gameWon=false; gameStarted=true;
+  bgX=0; monstersCollected=0; winTimer=0; confetti=[];
+  spawnTimer=0; spawnTimer2=0; canSpawnTimer=0;
+  students=[]; cans=[];
+  player.x=100; player.y=350; player.velocityY=0; player.currentFrame=0;
+  restartBtn.style.display='none'; startBtn.style.display='none';
+  screamSound=playAudio('./scream.wav',true,0.12);
 }
 
-// ─── KEYBOARD ────────────────────────────────────────────────
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && !gameStarted) {
-    gameStarted = true;
-    startAudio();
-    startBtn.style.display = 'none';
-    e.preventDefault();
+// ─── KEYBOARD ─────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!gameStarted){gameStarted=true;startAudio();startBtn.style.display='none';e.preventDefault();}
+  if(e.code==='ArrowUp'){player.velocityY=-5;e.preventDefault();}
+  if(e.code==='ArrowDown'){player.velocityY=+5;e.preventDefault();}
+  if(e.code==='KeyR'&&(gameOver||gameWon))restartGame();
+  // CHEAT — press C to instantly win
+  if(e.code==='KeyC'&&gameStarted&&!gameOver&&!gameWon)triggerWin();
+});
+document.addEventListener('keyup',e=>{
+  if(e.code==='ArrowUp'||e.code==='ArrowDown')player.velocityY=0;
+});
+
+// ─── HELPERS ──────────────────────────────────────────────────
+function drawCentered(text,y,font,color,alpha){
+  ctx.save();
+  ctx.font=font; ctx.fillStyle=color;
+  if(alpha!==undefined)ctx.globalAlpha=alpha;
+  ctx.fillText(text,(W-ctx.measureText(text).width)/2,y);
+  ctx.restore();
+}
+
+// ─── CINEMATIC WIN SCREEN ─────────────────────────────────────
+function drawCinematicWin(t){
+  const spotX = player.x + 48;
+  const spotY = player.y + 72;
+
+  // 1. Deep dark vignette
+  ctx.fillStyle='rgba(0,0,0,0.82)';
+  ctx.fillRect(0,0,W,H);
+
+  // 2. Spotlight — radial gradient on player
+  const pulse = 1 + Math.sin(t*0.04)*0.08;
+  const spotR = 160 * pulse;
+  const spot = ctx.createRadialGradient(spotX,spotY,0,spotX,spotY,spotR);
+  spot.addColorStop(0,'rgba(255,240,180,0.38)');
+  spot.addColorStop(0.45,'rgba(255,220,100,0.14)');
+  spot.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=spot;
+  ctx.fillRect(0,0,W,H);
+
+
+    // WHITE STALL centered
+    const sx = W/2 - 120;
+    const sy = 200;
+    // back wall white
+    ctx.fillStyle='#f0f0f0'; ctx.fillRect(sx,sy+40,240,160);
+    // ceiling white peaked
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.moveTo(sx-10,sy+42); ctx.lineTo(sx+120,sy); ctx.lineTo(sx+250,sy+42); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e0e0e0';
+    ctx.beginPath(); ctx.moveTo(sx-10,sy+42); ctx.lineTo(sx+120,sy); ctx.lineTo(sx+125,sy); ctx.lineTo(sx-5,sy+42); ctx.closePath(); ctx.fill();
+    // ceiling fringe
+    for(let x=sx-8;x<sx+242;x+=14){ ctx.fillStyle='#ddd'; ctx.fillRect(x,sy+40,9,10); }
+    // table
+    ctx.fillStyle='#e8e8e8'; ctx.fillRect(sx+10,sy+130,220,8);
+    ctx.fillStyle='#f5f5f5'; ctx.fillRect(sx+10,sy+138,220,60);
+    // table legs
+    ctx.fillStyle='#ccc'; ctx.fillRect(sx+15,sy+196,8,44); ctx.fillRect(sx+217,sy+196,8,44);
+    // banner
+    ctx.fillStyle='#1a1a3a'; ctx.fillRect(sx+20,sy+48,200,34);
+    ctx.fillStyle='#cfb991'; ctx.font='bold 14px monospace';
+    const st='PURDUE CAREER FAIR'; ctx.fillText(st,sx+110-ctx.measureText(st).width/2,sy+70);
+    // poles
+    ctx.fillStyle='#bbb'; ctx.fillRect(sx-2,sy+40,6,160); ctx.fillRect(sx+236,sy+40,6,160);
+  
+// monster cans on stall table
+    const stallCanXs = [sx+50, sx+110, sx+170];
+    stallCanXs.forEach((cx2, i) => {
+        const bob = Math.sin(t * 0.05 + i * 1.2) * 2;
+        if(images.drink.complete){
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(images.drink, 0, 0, 32, 48, cx2-16, sy+100+bob, 32, 48);
+        }
+        // green glow under each can
+        const glow = ctx.createRadialGradient(cx2, sy+148, 1, cx2, sy+148, 14);
+        glow.addColorStop(0, 'rgba(0,200,0,0.3)');
+        glow.addColorStop(1, 'rgba(0,200,0,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx2-14, sy+135, 28, 14);
+    });
+    // 3. Player visible in spotlight
+  player.draw();
+
+  // 4. Confetti particles
+  confetti.forEach(p=>{
+    if(p.alpha<=0)return;
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,p.alpha);
+    ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle=p.color;
+    ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+    ctx.restore();
+  });
+
+  // 5. Cinematic scan line sweeping down
+  const scanY=((t*2.5)%(H+40))-20;
+  const scan=ctx.createLinearGradient(0,scanY-10,0,scanY+10);
+  scan.addColorStop(0,'rgba(255,255,255,0)');
+  scan.addColorStop(0.5,'rgba(255,255,255,0.055)');
+  scan.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=scan;
+  ctx.fillRect(0,scanY-10,W,20);
+
+  // 6. Letterbox bars sliding in from top and bottom
+  const barH=Math.max(0,55-t*1.5);
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,barH);
+  ctx.fillRect(0,H-barH,W,barH);
+
+  // 7. "YOU ESCAPED!" fades in with gold glow and pulse
+  const titleAlpha=Math.min(1,(t-20)/40);
+  if(titleAlpha>0){
+    ctx.save();
+    ctx.globalAlpha=titleAlpha;
+    ctx.translate(W/2,115);
+    const textPulse=1+Math.sin(t*0.06)*0.025;
+    ctx.scale(textPulse,textPulse);
+    ctx.font='bold 60px Arial';
+    ctx.fillStyle='#ffcc00';
+    ctx.textAlign='center';
+    ctx.shadowColor='#ffaa00'; ctx.shadowBlur=35;
+    ctx.fillText('YOU ESCAPED!',0,0);
+    ctx.shadowBlur=0;
+    ctx.restore();
   }
-  if (e.code === 'ArrowUp')   { player.velocityY = -5; e.preventDefault(); }
-  if (e.code === 'ArrowDown') { player.velocityY = +5; e.preventDefault(); }
-  if (e.code === 'KeyR' && (gameOver || gameWon)) restartGame();
-});
 
-document.addEventListener('keyup', (e) => {
-  if (e.code === 'ArrowUp' || e.code === 'ArrowDown') player.velocityY = 0;
-});
+  // 8. Subtitles stagger in
+  const sub1Alpha=Math.min(1,(t-55)/30);
+  const sub2Alpha=Math.min(1,(t-80)/30);
+  const sub3Alpha=Math.min(1,(t-105)/30);
 
-// ─── DRAW HELPER ─────────────────────────────────────────────
-function drawCentered(text, y, font, color) {
-  ctx.font = font;
-  ctx.fillStyle = color;
-  const w = ctx.measureText(text).width;
-  ctx.fillText(text, (W - w) / 2, y);
+  if(sub1Alpha>0) drawCentered('YOU REACHED YOUR TENT!',158,'bold 26px Arial','white',sub1Alpha);
+  if(sub2Alpha>0) drawCentered('No more resumes... for now.', 192,'20px Arial','rgba(200,200,200,1)',sub2Alpha);
+  if(sub3Alpha>0){
+    const blink=Math.sin(t*0.1)>0?1:0.3;
+    drawCentered('Press R to Play Again',500,'bold 20px Arial','#ffcc00',sub3Alpha*blink);
+  }
 }
 
-// ─── UPDATE ──────────────────────────────────────────────────
-function update() {
+// ─── UPDATE ───────────────────────────────────────────────────
+function update(){
   floatTimer++;
-  if (!gameStarted || gameOver || gameWon) return;
+
+  if(gameWon){
+    winTimer++;
+    confetti.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.06;
+      p.rot+=p.rotSpeed; p.alpha-=0.002;
+      if(p.y>H+10){p.y=-10;p.x=Math.random()*W;p.vy=-(Math.random()*4+1);p.alpha=1;}
+    });
+    player.animTimer++;
+    if(player.animTimer>=20){player.currentFrame=(player.currentFrame+1)%4;player.animTimer=0;}
+    return;
+  }
+
+  if(!gameStarted||gameOver)return;
 
   player.update();
 
   spawnTimer++;
-  if (spawnTimer >= 120) { spawnStudent(false); spawnTimer = 0; }
+  if(spawnTimer>=120){spawnStudent(false);spawnTimer=0;}
   spawnTimer2++;
-  if (spawnTimer2 >= 300) { spawnStudent(true); spawnTimer2 = 0; }
+  if(spawnTimer2>=300){spawnStudent(true);spawnTimer2=0;}
 
-  for (let i = students.length - 1; i >= 0; i--) {
+  for(let i=students.length-1;i>=0;i--){
     students[i].update();
-    if (!students[i].alive) students.splice(i, 1);
+    if(!students[i].alive)students.splice(i,1);
   }
-
-  for (let i = 0; i < students.length; i++) {
-    if (isCollidingStudent(students[i])) {
-      gameOver = true;
-      restartBtn.style.display = 'block';
-      return;
-    }
+  for(let i=0;i<students.length;i++){
+    if(isCollidingStudent(students[i])){triggerLose();return;}
   }
 
   canSpawnTimer++;
-  if (canSpawnTimer >= 200) { spawnCan(); canSpawnTimer = 0; }
+  if(canSpawnTimer>=200){spawnCan();canSpawnTimer=0;}
 
-  for (let i = cans.length - 1; i >= 0; i--) {
+  for(let i=cans.length-1;i>=0;i--){
     cans[i].update();
-    if (!cans[i].alive) { cans.splice(i, 1); continue; }
-    if (isCollidingCan(cans[i])) {
+    if(!cans[i].alive){cans.splice(i,1);continue;}
+    if(isCollidingCan(cans[i])){
       monstersCollected++;
-      cans.splice(i, 1);
-      playAudio('./monster.wav', false, 0.8);
+      cans.splice(i,1);
+      playAudio('./monster.wav',false,0.8);
     }
   }
 
-  if (monstersCollected >= 10) {
-    gameWon = true;
-    restartBtn.style.display = 'block';
-    return;
-  }
+  if(monstersCollected>=10){triggerWin();return;}
 
-  bgX -= 2;
-  if (bgX <= -800) bgX = 0;
+  bgX-=2;
+  if(bgX<=-800)bgX=0;
 }
 
-// ─── DRAW ────────────────────────────────────────────────────
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-  ctx.imageSmoothingEnabled = false;
+// ─── DRAW ─────────────────────────────────────────────────────
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.imageSmoothingEnabled=false;
 
-  // Background
-  ctx.drawImage(images.background, bgX, 0, 800, 600);
-  ctx.drawImage(images.background, bgX + 800, 0, 800, 600);
+  ctx.drawImage(images.background,bgX,0,800,600);
+  ctx.drawImage(images.background,bgX+800,0,800,600);
 
-  // Students behind
-  students.forEach(s => { if (s.y < player.y) s.draw(); });
-  // Cans
-  cans.forEach(c => c.draw());
-  // Player
+  students.forEach(s=>{if(s.y<player.y)s.draw();});
+  cans.forEach(c=>c.draw());
   player.draw();
-  // Students in front
-  students.forEach(s => { if (s.y >= player.y) s.draw(); });
+  students.forEach(s=>{if(s.y>=player.y)s.draw();});
 
-  // Progress bar
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(10, 10, 204, 24);
-  ctx.fillStyle = 'rgb(0,180,0)';
-  ctx.fillRect(12, 12, Math.floor(200 * (monstersCollected / 10)), 20);
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 13px Arial';
-  ctx.fillText('Monster: ' + monstersCollected + '/10', 220, 27);
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(10,10,204,24);
+  ctx.fillStyle='rgb(0,180,0)'; ctx.fillRect(12,12,Math.floor(200*(monstersCollected/10)),20);
+  ctx.fillStyle='white'; ctx.font='bold 13px Arial';
+  ctx.fillText('Monster: '+monstersCollected+'/10',220,27);
 
-  // Purdue logo floating
-  if (images.purdue.complete) {
-    const floatY = Math.sin(floatTimer * 0.05) * 6;
-    ctx.drawImage(images.purdue, 360, 5 + floatY, 80, 80);
+  // Purdue logo
+  if(images.purdue.complete){
+    const fy=Math.sin(floatTimer*0.05)*6;
+    ctx.drawImage(images.purdue,360,5+fy,80,80);
   }
 
   // START SCREEN
-  if (!gameStarted) {
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, W, H);
-    if (images.purdue.complete) {
-      const floatY = Math.sin(floatTimer * 0.05) * 6;
-      ctx.drawImage(images.purdue, 350, 45 + floatY, 100, 100);
+  if(!gameStarted){
+    ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+    if(images.purdue.complete){
+      const fy=Math.sin(floatTimer*0.05)*6;
+      ctx.drawImage(images.purdue,350,45+fy,100,100);
     }
-    drawCentered('CAREER', 205, 'bold 80px Arial', '#ffcc00');
-    drawCentered('DOOM', 292, 'bold 80px Arial', '#ff3333');
-    drawCentered("You're the interviewer — dodge students,", 335, '18px Arial', 'white');
-    drawCentered('collect Monster Energy & sprint to your tent!', 360, '18px Arial', 'white');
-    drawCentered('UP / DOWN arrows to move', 395, '15px Arial', '#cccccc');
-    drawCentered('Press SPACE to Start', 435, 'bold 22px Arial', '#ffcc00');
-    startBtn.style.display = 'block';
-    restartBtn.style.display = 'none';
+    drawCentered('CAREER',205,'bold 80px Arial','#ffcc00');
+    drawCentered('DOOM',292,'bold 80px Arial','#ff3333');
+    drawCentered("You're the interviewer — dodge students,",335,'18px Arial','white');
+    drawCentered('collect Monster Energy & sprint to your tent!',360,'18px Arial','white');
+    drawCentered('UP / DOWN arrows to move',395,'15px Arial','#cccccc');
+    drawCentered('Press SPACE to Start',435,'bold 22px Arial','#ffcc00');
+    startBtn.style.display='block';
+    restartBtn.style.display='none';
   }
 
   // GAME OVER
-  if (gameOver) {
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, W, H);
-    // red box — taller to fit all content
-    ctx.fillStyle = 'rgba(180,0,0,0.88)';
-    ctx.fillRect(150, 175, 500, 240);
-    ctx.fillStyle = 'rgb(220,0,0)';
-    ctx.fillRect(150, 175, 500, 4);
-    ctx.fillRect(150, 411, 500, 4);
-    drawCentered('GAME OVER', 265, 'bold 65px Arial', 'white');
-    drawCentered('You got buried in resumes!', 310, '22px Arial', 'rgb(255,200,200)');
-    drawCentered('Press R to Restart', 350, 'bold 20px Arial', 'yellow');
+  if(gameOver){
+    ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(180,0,0,0.88)'; ctx.fillRect(150,175,500,240);
+    ctx.fillStyle='rgb(220,0,0)';
+    ctx.fillRect(150,175,500,4); ctx.fillRect(150,411,500,4);
+    drawCentered('GAME OVER',265,'bold 65px Arial','white');
+    drawCentered('You got buried in resumes!',310,'22px Arial','rgb(255,200,200)');
+    drawCentered('Press R to Restart',350,'bold 20px Arial','yellow');
   }
 
-  // WIN SCREEN
-  if (gameWon) {
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(0,200,0,0.88)';
-    ctx.fillRect(100, 175, 600, 240);
-    drawCentered('YOU WIN! 🎉', 265, 'bold 58px Arial', 'black');
-    drawCentered('YOU REACHED YOUR TENT!!', 312, '22px Arial', 'white');
-    drawCentered('NO MORE RESUMES FOR TODAY!', 342, '22px Arial', 'white');
-    drawCentered('Press R to Play Again', 380, 'bold 20px Arial', 'yellow');
-  }
+  // WIN SCREEN — cinematic
+  if(gameWon){ drawCinematicWin(winTimer); }
 }
 
-// ─── LOOP ────────────────────────────────────────────────────
-function loop() { update(); draw(); requestAnimationFrame(loop); }
+// ─── LOOP ─────────────────────────────────────────────────────
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
-// Show start button immediately
-startBtn.style.display = 'block';
+startBtn.style.display='block';
 
-// Wait for images
-let loaded = 0;
-const total = Object.keys(images).length;
-Object.values(images).forEach(img => {
-  img.onload  = () => { if (++loaded >= total) loop(); };
-  img.onerror = () => { if (++loaded >= total) loop(); };
+let loaded=0;
+const total=Object.keys(images).length;
+Object.values(images).forEach(img=>{
+  img.onload=()=>{if(++loaded>=total)loop();};
+  img.onerror=()=>{if(++loaded>=total)loop();};
 });
-setTimeout(() => { if (loaded < total) loop(); }, 2000);
+setTimeout(()=>{if(loaded<total)loop();},2000);
 </script>
 </body>
 </html>
