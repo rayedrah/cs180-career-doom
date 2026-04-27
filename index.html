@@ -6,19 +6,194 @@
 <title>Career Doom</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
-  canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .game-wrapper {
+    position: relative;
+    width: 800px;
+    height: 600px;
+  }
+
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    display: block;
+  }
+
+  /* UP / DOWN buttons
+     Canvas is 600px tall.
+     Grass starts ~y=430 (30% from bottom = 180px from bottom).
+     We want buttons 70% in grass, 30% in pavement.
+     Each button is 56px tall, gap 10px → total ~122px.
+     Position: bottom: 60px places them nicely in grass zone. */
+  .dpad {
+    position: absolute;
+    right: 10px;
+    bottom: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  .dpad-btn {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.1s;
+  }
+
+  .dpad-btn:active,
+  .dpad-btn.pressed {
+    background: rgba(255, 255, 255, 0.38);
+  }
+
+  /* START button — shown on start screen */
+  #start-btn {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 55px;
+    padding: 14px 48px;
+    background: rgba(255, 204, 0, 0.9);
+    border: 2px solid #ffcc00;
+    border-radius: 10px;
+    color: #000;
+    font-size: 20px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+    z-index: 10;
+    display: none;
+    user-select: none;
+    letter-spacing: 1px;
+  }
+
+  #start-btn:active { background: rgba(255, 180, 0, 1); }
+
+  /* RESTART button — shown on game over / win */
+  #restart-btn {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 140px;
+    padding: 14px 48px;
+    background: rgba(255, 204, 0, 0.9);
+    border: 2px solid #ffcc00;
+    border-radius: 10px;
+    color: #000;
+    font-size: 20px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+    z-index: 10;
+    display: none;
+    user-select: none;
+    letter-spacing: 1px;
+  }
+
+  #restart-btn:active { background: rgba(255, 180, 0, 1); }
 </style>
 </head>
 <body>
-<canvas id="game" width="800" height="600"></canvas>
+<div class="game-wrapper">
+  <canvas id="game" width="800" height="600"></canvas>
+
+  <!-- D-Pad buttons — right side, in grass zone -->
+  <div class="dpad">
+    <button class="dpad-btn" id="btn-up">▲</button>
+    <button class="dpad-btn" id="btn-down">▼</button>
+  </div>
+
+  <!-- Start button -->
+  <button id="start-btn">▶ &nbsp;START</button>
+
+  <!-- Restart button — uses ↻ restart symbol -->
+  <button id="restart-btn"> &nbsp;RESTART</button>
+</div>
+
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// Same as Java: 800x600
 const W = 800, H = 600;
+
+// ─── BUTTONS ─────────────────────────────────────────────────
+const startBtn   = document.getElementById('start-btn');
+const restartBtn = document.getElementById('restart-btn');
+const btnUp      = document.getElementById('btn-up');
+const btnDown    = document.getElementById('btn-down');
+
+// UP button
+['mousedown','touchstart'].forEach(ev => {
+  btnUp.addEventListener(ev, (e) => {
+    e.preventDefault();
+    player.velocityY = -5;
+    btnUp.classList.add('pressed');
+  });
+});
+['mouseup','touchend','mouseleave','touchcancel'].forEach(ev => {
+  btnUp.addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (player.velocityY < 0) player.velocityY = 0;
+    btnUp.classList.remove('pressed');
+  });
+});
+
+// DOWN button
+['mousedown','touchstart'].forEach(ev => {
+  btnDown.addEventListener(ev, (e) => {
+    e.preventDefault();
+    player.velocityY = +5;
+    btnDown.classList.add('pressed');
+  });
+});
+['mouseup','touchend','mouseleave','touchcancel'].forEach(ev => {
+  btnDown.addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (player.velocityY > 0) player.velocityY = 0;
+    btnDown.classList.remove('pressed');
+  });
+});
+
+// Start button
+['click','touchstart'].forEach(ev => {
+  startBtn.addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (!gameStarted) {
+      gameStarted = true;
+      startAudio();
+      startBtn.style.display = 'none';
+    }
+  });
+});
+
+// Restart button
+['click','touchstart'].forEach(ev => {
+  restartBtn.addEventListener(ev, (e) => {
+    e.preventDefault();
+    restartGame();
+  });
+});
 
 // ─── IMAGE LOADING ───────────────────────────────────────────
 function loadImage(src) {
@@ -52,47 +227,33 @@ function playAudio(src, loop, volume) {
 function startAudio() {
   if (audioStarted) return;
   audioStarted = true;
-  playAudio('./RESUME.wav', true, 0.3);
+  playAudio('./RESUME.mp3', true, 0.3);
   playAudio('./scream.wav', true, 0.12);
 }
 
 // ─── GAME STATE ───────────────────────────────────────────────
-// Exactly matches Java GamePanel fields
 let gameStarted = false;
 let gameOver    = false;
 let gameWon     = false;
-let bgX         = 0;        // same as Java: private int bgX = 0
-let floatTimer  = 0;        // same as Java: private int floatTimer = 0
-let monstersCollected = 0;  // same as Java
-let spawnTimer  = 0;        // same as Java
-let spawnTimer2 = 0;        // same as Java
-let canSpawnTimer = 0;      // same as Java
+let bgX         = 0;
+let floatTimer  = 0;
+let monstersCollected = 0;
+let spawnTimer  = 0;
+let spawnTimer2 = 0;
+let canSpawnTimer = 0;
 
 // ─── PLAYER ──────────────────────────────────────────────────
-// Java Player.java:
-//   super(x, y, 32, 48, image, 4)  → frameW=32, frameH=48, 4 frames
-//   g.drawImage(frame, x, y, 96, 144, null) → drawn 96x144
-//   if (y < 180) y = 180;
-//   if (y > 470 - 144) y = 326;
-//   velocityY = -5 (up) / +5 (down)
-//   animTimer >= 12 → advance frame
 const player = {
-  x: 100,
-  y: 350,          // same as Java: new Player(100, 350, playerImage)
+  x: 100, y: 350,
   velocityY: 0,
-  currentFrame: 0,
-  animTimer: 0,
-  frameW: 32,
-  frameH: 48,
-  drawW: 96,       // same as Java drawImage
-  drawH: 144,      // same as Java drawImage
+  currentFrame: 0, animTimer: 0,
+  frameW: 32, frameH: 48,
+  drawW: 96, drawH: 144,
 
   update() {
     this.y += this.velocityY;
-    // exact same bounds as Java Player.java
     if (this.y < 180) this.y = 180;
-    if (this.y > 326) this.y = 326;   // 470 - 144 = 326
-    // animate — same as Java: anitimer >= 12
+    if (this.y > 326) this.y = 326;
     this.animTimer++;
     if (this.animTimer >= 12) {
       this.currentFrame = (this.currentFrame + 1) % 4;
@@ -102,125 +263,80 @@ const player = {
 
   draw() {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      images.player,
+    ctx.drawImage(images.player,
       this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-      this.x, this.y, this.drawW, this.drawH
-    );
+      this.x, this.y, this.drawW, this.drawH);
   }
 };
 
 // ─── STUDENTS ────────────────────────────────────────────────
-// Java Student.java:
-//   super(800, y, 32, 48, image, 4) → x starts at 800
-//   speed = 3 (normal) / 5 (fast)
-//   animTimer >= 12 (normal) / >= 6 (fast) → advance frame
-//   if (x < -100) alive = false
-//   g.drawImage(frame, x, y, 96, 144, null)
 let students = [];
 
 function spawnStudent(fast) {
   students.push({
-    x: 800,          // same as Java: super(800, y, ...)
-    y: player.y,
+    x: 800, y: player.y,
     speed: fast ? 5 : 3,
     isFast: fast,
-    currentFrame: 0,
-    animTimer: 0,
-    alive: true,
-    frameW: 32,
-    frameH: 48,
-    drawW: 96,
-    drawH: 144,
+    currentFrame: 0, animTimer: 0, alive: true,
+    frameW: 32, frameH: 48, drawW: 96, drawH: 144,
 
     update() {
       this.x -= this.speed;
       this.animTimer++;
-      const threshold = this.isFast ? 6 : 12;
-      if (this.animTimer >= threshold) {
+      if (this.animTimer >= (this.isFast ? 6 : 12)) {
         this.currentFrame = (this.currentFrame + 1) % 4;
         this.animTimer = 0;
       }
-      if (this.x < -100) this.alive = false;  // same as Java
+      if (this.x < -100) this.alive = false;
     },
 
     draw() {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(
-        this.isFast ? images.student2 : images.student,
+      ctx.drawImage(this.isFast ? images.student2 : images.student,
         this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-        this.x, this.y, this.drawW, this.drawH
-      );
+        this.x, this.y, this.drawW, this.drawH);
     }
   });
 }
 
 // ─── MONSTER CANS ────────────────────────────────────────────
-// Java MonsterCan.java:
-//   super(x, y, 32, 48, image, 4)
-//   x -= 2  (scrolls left)
-//   animTimer >= 10 → advance frame
-//   if (x < -100) alive = false
-//   g.drawImage(frame, x, y, 48, 72, null)
-// Java GamePanel spawn:
-//   int randomY = 330 + (int)(Math.random() * 80)
-//   new MonsterCan(850, randomY, canImage)
 let cans = [];
 
 function spawnCan() {
-  const randomY = 330 + Math.floor(Math.random() * 80);  // exact same as Java
+  const randomY = 330 + Math.floor(Math.random() * 80);
   cans.push({
-    x: 850,           // same as Java: new MonsterCan(850, randomY, ...)
-    y: randomY,
-    currentFrame: 0,
-    animTimer: 0,
-    alive: true,
-    frameW: 32,
-    frameH: 48,
-    drawW: 48,        // same as Java: g.drawImage(frame, x, y, 48, 72, null)
-    drawH: 72,
+    x: 850, y: randomY,
+    currentFrame: 0, animTimer: 0, alive: true,
+    frameW: 32, frameH: 48, drawW: 48, drawH: 72,
 
     update() {
-      this.x -= 2;    // same as Java: x -= 2
+      this.x -= 2;
       this.animTimer++;
-      if (this.animTimer >= 10) {   // same as Java: animTimer >= 10
+      if (this.animTimer >= 10) {
         this.currentFrame = (this.currentFrame + 1) % 4;
         this.animTimer = 0;
       }
-      if (this.x < -100) this.alive = false;  // same as Java
+      if (this.x < -100) this.alive = false;
     },
 
     draw() {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(
-        images.drink,
+      ctx.drawImage(images.drink,
         this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
-        this.x, this.y, this.drawW, this.drawH
-      );
+        this.x, this.y, this.drawW, this.drawH);
     }
   });
 }
 
 // ─── COLLISION ───────────────────────────────────────────────
-// Java isColliding():
-//   playerLeft  = player.getX() + 35
-//   playerRight = player.getX() + 61
-//   playerTop   = player.getY() + 125
-//   playerBottom= player.getY() + 144
-//   studentLeft = s.getX() + 35  etc.
 function isCollidingStudent(s) {
-  const pL = player.x + 35,  pR = player.x + 61;
+  const pL = player.x + 35, pR = player.x + 61;
   const pT = player.y + 125, pB = player.y + 144;
-  const sL = s.x + 35,       sR = s.x + 61;
-  const sT = s.y + 125,      sB = s.y + 144;
+  const sL = s.x + 35, sR = s.x + 61;
+  const sT = s.y + 125, sB = s.y + 144;
   return pL < sR && pR > sL && pT < sB && pB > sT;
 }
 
-// Java can collection check:
-//   player.getX() + 40 < can.getX() + 40
-//   player.getX() + 60 > can.getX() + 8
-//   player.getY() + 100 < can.getY() + 72
-//   player.getY() + 144 > can.getY() + 10
 function isCollidingCan(c) {
   return player.x + 40 < c.x + 40
       && player.x + 60 > c.x + 8
@@ -229,41 +345,23 @@ function isCollidingCan(c) {
 }
 
 // ─── RESTART ─────────────────────────────────────────────────
-// Java restartGame():
-//   gameOver=false, gameWon=false, gameStarted=true
-//   students.clear(), cans.clear()
-//   spawnTimer=0, spawnTimer2=0, canSpawnTimer=0
-//   monstersCollected=0, bgX=0
-//   new Player(100, 350, playerImage)
 function restartGame() {
-  gameOver = false;
-  gameWon = false;
-  gameStarted = true;
-  bgX = 0;
-  monstersCollected = 0;
-  spawnTimer = 0;
-  spawnTimer2 = 0;
-  canSpawnTimer = 0;
-  students = [];
-  cans = [];
-  player.x = 100;
-  player.y = 350;       // same as Java: new Player(100, 350, ...)
-  player.velocityY = 0;
-  player.currentFrame = 0;
+  gameOver = false; gameWon = false; gameStarted = true;
+  bgX = 0; monstersCollected = 0;
+  spawnTimer = 0; spawnTimer2 = 0; canSpawnTimer = 0;
+  students = []; cans = [];
+  player.x = 100; player.y = 350;
+  player.velocityY = 0; player.currentFrame = 0;
+  restartBtn.style.display = 'none';
+  startBtn.style.display = 'none';
 }
 
-// ─── INPUT ───────────────────────────────────────────────────
-// Java keyPressed:
-//   VK_SPACE → gameStarted = true
-//   VK_UP    → player.playerUp()   → velocityY = -5
-//   VK_DOWN  → player.playerDown() → velocityY = +5
-//   VK_R     → restartGame()
-// Java keyReleased:
-//   player.playerStop() → velocityY = 0
+// ─── KEYBOARD ────────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && !gameStarted) {
     gameStarted = true;
     startAudio();
+    startBtn.style.display = 'none';
     e.preventDefault();
   }
   if (e.code === 'ArrowUp')   { player.velocityY = -5; e.preventDefault(); }
@@ -272,13 +370,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
-  if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
-    player.velocityY = 0;   // same as Java: playerStop()
-  }
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown') player.velocityY = 0;
 });
 
 // ─── DRAW HELPER ─────────────────────────────────────────────
-// Java: (800 - fm.stringWidth(text)) / 2
 function drawCentered(text, y, font, color) {
   ctx.font = font;
   ctx.fillStyle = color;
@@ -291,63 +386,32 @@ function update() {
   floatTimer++;
   if (!gameStarted || gameOver || gameWon) return;
 
-  // Java timer lambda order:
-  // 1. player.update()
-  // 2. spawnTimer → add student every 120 ticks
-  // 3. spawnTimer2 → add student2 every 300 ticks
-  // 4. update students, remove dead
-  // 5. check collisions
-  // 6. canSpawnTimer → add can every 200 ticks
-  // 7. update cans, check collection
-  // 8. check win (monstersCollected >= 10)
-  // 9. bgX -= 2
-
   player.update();
 
-  // spawn normal student every 120 ticks
   spawnTimer++;
-  if (spawnTimer >= 120) {
-    spawnStudent(false);
-    spawnTimer = 0;
-  }
-
-  // spawn fast student every 300 ticks
+  if (spawnTimer >= 120) { spawnStudent(false); spawnTimer = 0; }
   spawnTimer2++;
-  if (spawnTimer2 >= 300) {
-    spawnStudent(true);
-    spawnTimer2 = 0;
-  }
+  if (spawnTimer2 >= 300) { spawnStudent(true); spawnTimer2 = 0; }
 
-  // update students
   for (let i = students.length - 1; i >= 0; i--) {
     students[i].update();
-    if (!students[i].alive) {
-      students.splice(i, 1);
-    }
+    if (!students[i].alive) students.splice(i, 1);
   }
 
-  // check student collisions
   for (let i = 0; i < students.length; i++) {
     if (isCollidingStudent(students[i])) {
       gameOver = true;
+      restartBtn.style.display = 'block';
       return;
     }
   }
 
-  // spawn can every 200 ticks
   canSpawnTimer++;
-  if (canSpawnTimer >= 200) {
-    spawnCan();
-    canSpawnTimer = 0;
-  }
+  if (canSpawnTimer >= 200) { spawnCan(); canSpawnTimer = 0; }
 
-  // update cans and check collection
   for (let i = cans.length - 1; i >= 0; i--) {
     cans[i].update();
-    if (!cans[i].alive) {
-      cans.splice(i, 1);
-      continue;
-    }
+    if (!cans[i].alive) { cans.splice(i, 1); continue; }
     if (isCollidingCan(cans[i])) {
       monstersCollected++;
       cans.splice(i, 1);
@@ -355,13 +419,12 @@ function update() {
     }
   }
 
-  // win condition: monstersCollected >= 10
   if (monstersCollected >= 10) {
     gameWon = true;
+    restartBtn.style.display = 'block';
     return;
   }
 
-  // scroll background
   bgX -= 2;
   if (bgX <= -800) bgX = 0;
 }
@@ -371,28 +434,20 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   ctx.imageSmoothingEnabled = false;
 
-  // 1. BACKGROUND — same as Java:
-  // g2d.drawImage(background, bgX, 0, 800, 600, null)
-  // g2d.drawImage(background, bgX + 800, 0, 800, 600, null)
+  // Background
   ctx.drawImage(images.background, bgX, 0, 800, 600);
   ctx.drawImage(images.background, bgX + 800, 0, 800, 600);
 
-  // 2. STUDENTS BEHIND PLAYER
+  // Students behind player
   students.forEach(s => { if (s.y < player.y) s.draw(); });
-
-  // 3. CANS
+  // Cans
   cans.forEach(c => c.draw());
-
-  // 4. PLAYER
+  // Player
   player.draw();
-
-  // 5. STUDENTS IN FRONT
+  // Students in front
   students.forEach(s => { if (s.y >= player.y) s.draw(); });
 
-  // 6. PROGRESS BAR — same as Java:
-  // fillRect(10, 10, 204, 24)
-  // fillRect(12, 12, (int)(200*(monstersCollected/10.0)), 20)
-  // drawString("Monster: " + monstersCollected + "/10", 220, 27)
+  // Progress bar
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(10, 10, 204, 24);
   ctx.fillStyle = 'rgb(0,180,0)';
@@ -401,15 +456,15 @@ function draw() {
   ctx.font = 'bold 13px Arial';
   ctx.fillText('Monster: ' + monstersCollected + '/10', 220, 27);
 
-  // 7. PURDUE LOGO FLOATING TOP CENTER
+  // Purdue logo floating
   if (images.purdue.complete) {
     const floatY = Math.sin(floatTimer * 0.05) * 6;
     ctx.drawImage(images.purdue, 360, 5 + floatY, 80, 80);
   }
 
-  // 8. START SCREEN — same as Java paintComponent
+  // START SCREEN
   if (!gameStarted) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, W, H);
     if (images.purdue.complete) {
       const floatY = Math.sin(floatTimer * 0.05) * 6;
@@ -417,52 +472,52 @@ function draw() {
     }
     drawCentered('CAREER', 210, 'bold 80px Arial', '#ffcc00');
     drawCentered('DOOM',   300, 'bold 80px Arial', '#ff3333');
-    drawCentered('Dodge Resumes. Collect Monster. Survive!', 350, '20px Arial', 'white');
-    drawCentered('UP / DOWN arrows to move', 395, '16px Arial', '#cccccc');
-    drawCentered('Press SPACE to Start', 455, 'bold 22px Arial', '#ffcc00');
+    drawCentered("You're the interviewer — dodge students, collect Monster, reach your tent!", 340, '18px Arial', 'white');
+    drawCentered('UP / DOWN arrows to move', 390, '16px Arial', '#cccccc');
+    drawCentered('Press SPACE to Start', 440, 'bold 22px Arial', '#ffcc00');
+    startBtn.style.display = 'block';
+    restartBtn.style.display = 'none';
   }
 
-  // 9. GAME OVER SCREEN — same as Java
+  // GAME OVER
   if (gameOver) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(180,0,0,0.85)';
-    ctx.fillRect(150, 200, 500, 200);
+    ctx.fillStyle = 'rgba(180,0,0,0.88)';
     ctx.fillStyle = 'rgb(220,0,0)';
-    ctx.fillRect(150, 200, 500, 4);
-    ctx.fillRect(150, 396, 500, 4);
-    drawCentered('GAME OVER', 295, 'bold 65px Arial', 'white');
-    drawCentered('You got buried in resumes!', 340, '22px Arial', 'rgb(255,200,200)');
-    drawCentered('Press R to Restart', 380, 'bold 22px Arial', 'yellow');
+    ctx.fillRect(150, 180, 500, 230);  // was 200 start, 200 height → now 180 start, 230 height
+    ctx.fillRect(150, 180, 500, 4);    // top border
+    ctx.fillRect(150, 406, 500, 4);    // bottom border
+    drawCentered('GAME OVER', 270, 'bold 65px Arial', 'white');
+    drawCentered('You got buried in resumes!', 320, '22px Arial', 'rgb(255,200,200)');
+    drawCentered('Press R to Restart', 365, 'bold 20px Arial', 'yellow');
   }
 
-  // 10. WIN SCREEN — same as Java
+  // WIN SCREEN
   if (gameWon) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(0,200,0,0.85)';
+    ctx.fillStyle = 'rgba(0,200,0,0.88)';
     ctx.fillRect(150, 180, 500, 220);
     drawCentered('YOU WIN!', 270, 'bold 60px Arial', 'black');
-    drawCentered('YOU REACHED YOUR TENT !! NO MORE RESUMES', 320, '22px Arial', 'white');
-    drawCentered('Press R to Play Again', 370, 'bold 20px Arial', 'yellow');
+    drawCentered('YOU REACHED YOUR TENT !!', 318, '20px Arial', 'white');
+    drawCentered('Press R to Play Again', 360, 'bold 20px Arial', 'yellow');
   }
 }
 
-// ─── GAME LOOP ───────────────────────────────────────────────
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
+// ─── LOOP ────────────────────────────────────────────────────
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 
-// Wait for all images to load then start
+// Show start button immediately
+startBtn.style.display = 'block';
+
+// Wait for images then start loop
 let loaded = 0;
 const total = Object.keys(images).length;
 Object.values(images).forEach(img => {
   img.onload  = () => { if (++loaded >= total) loop(); };
   img.onerror = () => { if (++loaded >= total) loop(); };
 });
-// Fallback: start after 2 seconds even if images fail
 setTimeout(() => { if (loaded < total) loop(); }, 2000);
 </script>
 </body>
