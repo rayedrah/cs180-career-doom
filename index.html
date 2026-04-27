@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Career Doom</title>
+
+<!-- University emoji as favicon -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -12,14 +16,17 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
     overflow: hidden;
+    touch-action: none;
   }
 
   .game-wrapper {
     position: relative;
+    /* Will be scaled via JS for mobile */
     width: 800px;
     height: 600px;
+    transform-origin: top center;
   }
 
   canvas {
@@ -28,12 +35,7 @@
     display: block;
   }
 
-  /* UP / DOWN buttons
-     Canvas is 600px tall.
-     Grass starts ~y=430 (30% from bottom = 180px from bottom).
-     We want buttons 70% in grass, 30% in pavement.
-     Each button is 56px tall, gap 10px → total ~122px.
-     Position: bottom: 60px places them nicely in grass zone. */
+  /* D-pad buttons — right side in grass zone */
   .dpad {
     position: absolute;
     right: 10px;
@@ -66,7 +68,7 @@
     background: rgba(255, 255, 255, 0.38);
   }
 
-  /* START button — shown on start screen */
+  /* START button */
   #start-btn {
     position: absolute;
     left: 50%;
@@ -85,16 +87,16 @@
     display: none;
     user-select: none;
     letter-spacing: 1px;
+    white-space: nowrap;
   }
-
   #start-btn:active { background: rgba(255, 180, 0, 1); }
 
-  /* RESTART button — shown on game over / win */
+  /* RESTART button */
   #restart-btn {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    bottom: 140px;
+    bottom: 150px;
     padding: 14px 48px;
     background: rgba(255, 204, 0, 0.9);
     border: 2px solid #ffcc00;
@@ -108,36 +110,56 @@
     display: none;
     user-select: none;
     letter-spacing: 1px;
+    white-space: nowrap;
   }
-
   #restart-btn:active { background: rgba(255, 180, 0, 1); }
 </style>
 </head>
 <body>
-<div class="game-wrapper">
+<div class="game-wrapper" id="wrapper">
   <canvas id="game" width="800" height="600"></canvas>
 
-  <!-- D-Pad buttons — right side, in grass zone -->
   <div class="dpad">
     <button class="dpad-btn" id="btn-up">▲</button>
     <button class="dpad-btn" id="btn-down">▼</button>
   </div>
 
-  <!-- Start button -->
   <button id="start-btn">▶ &nbsp;START</button>
-
-  <!-- Restart button — uses ↻ restart symbol -->
-  <button id="restart-btn"> &nbsp;RESTART</button>
+  <button id="restart-btn">↻ &nbsp;RESTART</button>
 </div>
 
 <script>
+// ─── MOBILE SCALING ──────────────────────────────────────────
+// Detect screen size and scale the game wrapper to fit
+function scaleGame() {
+  const wrapper = document.getElementById('wrapper');
+  const scaleX = window.innerWidth / 800;
+  const scaleY = window.innerHeight / 600;
+  const scale  = Math.min(scaleX, scaleY);  // fit without cropping
+
+  wrapper.style.transform = 'scale(' + scale + ')';
+  wrapper.style.transformOrigin = 'top left';
+
+  // Center it
+  const scaledW = 800 * scale;
+  const scaledH = 600 * scale;
+  wrapper.style.position = 'absolute';
+  wrapper.style.left = ((window.innerWidth  - scaledW) / 2) + 'px';
+  wrapper.style.top  = ((window.innerHeight - scaledH) / 2) + 'px';
+}
+
+scaleGame();
+window.addEventListener('resize', scaleGame);
+window.addEventListener('orientationchange', () => setTimeout(scaleGame, 200));
+
+// ─── CANVAS SETUP ────────────────────────────────────────────
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
 const W = 800, H = 600;
 
-// ─── BUTTONS ─────────────────────────────────────────────────
+// ─── BUTTON REFS ─────────────────────────────────────────────
 const startBtn   = document.getElementById('start-btn');
 const restartBtn = document.getElementById('restart-btn');
 const btnUp      = document.getElementById('btn-up');
@@ -227,7 +249,7 @@ function playAudio(src, loop, volume) {
 function startAudio() {
   if (audioStarted) return;
   audioStarted = true;
-  playAudio('./RESUME.wav', true, 0.3);
+  playAudio('./RESUME.mp3', true, 0.3);
   playAudio('./scream.wav', true, 0.12);
 }
 
@@ -438,7 +460,7 @@ function draw() {
   ctx.drawImage(images.background, bgX, 0, 800, 600);
   ctx.drawImage(images.background, bgX + 800, 0, 800, 600);
 
-  // Students behind player
+  // Students behind
   students.forEach(s => { if (s.y < player.y) s.draw(); });
   // Cans
   cans.forEach(c => c.draw());
@@ -468,13 +490,14 @@ function draw() {
     ctx.fillRect(0, 0, W, H);
     if (images.purdue.complete) {
       const floatY = Math.sin(floatTimer * 0.05) * 6;
-      ctx.drawImage(images.purdue, 350, 50 + floatY, 100, 100);
+      ctx.drawImage(images.purdue, 350, 45 + floatY, 100, 100);
     }
-    drawCentered('CAREER', 210, 'bold 80px Arial', '#ffcc00');
-    drawCentered('DOOM',   300, 'bold 80px Arial', '#ff3333');
-    drawCentered("You're the interviewer — dodge students, collect Monster, reach your tent!", 340, '18px Arial', 'white');
-    drawCentered('UP / DOWN arrows to move', 390, '16px Arial', '#cccccc');
-    drawCentered('Press SPACE to Start', 440, 'bold 22px Arial', '#ffcc00');
+    drawCentered('CAREER', 205, 'bold 80px Arial', '#ffcc00');
+    drawCentered('DOOM', 292, 'bold 80px Arial', '#ff3333');
+    drawCentered("You're the interviewer — dodge students,", 335, '18px Arial', 'white');
+    drawCentered('collect Monster Energy & sprint to your tent!', 360, '18px Arial', 'white');
+    drawCentered('UP / DOWN arrows to move', 395, '15px Arial', '#cccccc');
+    drawCentered('Press SPACE to Start', 435, 'bold 22px Arial', '#ffcc00');
     startBtn.style.display = 'block';
     restartBtn.style.display = 'none';
   }
@@ -483,14 +506,15 @@ function draw() {
   if (gameOver) {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, W, H);
+    // red box — taller to fit all content
     ctx.fillStyle = 'rgba(180,0,0,0.88)';
+    ctx.fillRect(150, 175, 500, 240);
     ctx.fillStyle = 'rgb(220,0,0)';
-    ctx.fillRect(150, 180, 500, 230);  // was 200 start, 200 height → now 180 start, 230 height
-    ctx.fillRect(150, 180, 500, 4);    // top border
-    ctx.fillRect(150, 406, 500, 4);    // bottom border
-    drawCentered('GAME OVER', 270, 'bold 65px Arial', 'white');
-    drawCentered('You got buried in resumes!', 320, '22px Arial', 'rgb(255,200,200)');
-    drawCentered('Press R to Restart', 365, 'bold 20px Arial', 'yellow');
+    ctx.fillRect(150, 175, 500, 4);
+    ctx.fillRect(150, 411, 500, 4);
+    drawCentered('GAME OVER', 265, 'bold 65px Arial', 'white');
+    drawCentered('You got buried in resumes!', 310, '22px Arial', 'rgb(255,200,200)');
+    drawCentered('Press R to Restart', 350, 'bold 20px Arial', 'yellow');
   }
 
   // WIN SCREEN
@@ -498,10 +522,11 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = 'rgba(0,200,0,0.88)';
-    ctx.fillRect(150, 180, 500, 220);
-    drawCentered('YOU WIN!', 270, 'bold 60px Arial', 'black');
-    drawCentered('YOU REACHED YOUR TENT !!', 318, '20px Arial', 'white');
-    drawCentered('Press R to Play Again', 360, 'bold 20px Arial', 'yellow');
+    ctx.fillRect(100, 175, 600, 240);
+    drawCentered('YOU WIN! 🎉', 265, 'bold 58px Arial', 'black');
+    drawCentered('YOU REACHED YOUR TENT!!', 312, '22px Arial', 'white');
+    drawCentered('NO MORE RESUMES FOR TODAY!', 342, '22px Arial', 'white');
+    drawCentered('Press R to Play Again', 380, 'bold 20px Arial', 'yellow');
   }
 }
 
@@ -511,7 +536,7 @@ function loop() { update(); draw(); requestAnimationFrame(loop); }
 // Show start button immediately
 startBtn.style.display = 'block';
 
-// Wait for images then start loop
+// Wait for images
 let loaded = 0;
 const total = Object.keys(images).length;
 Object.values(images).forEach(img => {
