@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Career Doom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+</style>
+</head>
+<body>
+<canvas id="game" width="800" height="600"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// Same as Java: 800x600
+const W = 800, H = 600;
+
+// ─── IMAGE LOADING ───────────────────────────────────────────
+function loadImage(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const images = {
+  background: loadImage('./background.png'),
+  player:     loadImage('./player.png'),
+  student:    loadImage('./student.png'),
+  student2:   loadImage('./student2.png'),
+  drink:      loadImage('./drink.png'),
+  purdue:     loadImage('./purdue.png'),
+};
+
+// ─── AUDIO ───────────────────────────────────────────────────
+let audioStarted = false;
+
+function playAudio(src, loop, volume) {
+  try {
+    const a = new Audio(src);
+    a.loop = loop || false;
+    a.volume = volume !== undefined ? volume : 1.0;
+    a.play().catch(() => {});
+    return a;
+  } catch(e) { return null; }
+}
+
+function startAudio() {
+  if (audioStarted) return;
+  audioStarted = true;
+  playAudio('./RESUME.wav', true, 0.3);
+  playAudio('./scream.wav', true, 0.12);
+}
+
+// ─── GAME STATE ───────────────────────────────────────────────
+// Exactly matches Java GamePanel fields
+let gameStarted = false;
+let gameOver    = false;
+let gameWon     = false;
+let bgX         = 0;        // same as Java: private int bgX = 0
+let floatTimer  = 0;        // same as Java: private int floatTimer = 0
+let monstersCollected = 0;  // same as Java
+let spawnTimer  = 0;        // same as Java
+let spawnTimer2 = 0;        // same as Java
+let canSpawnTimer = 0;      // same as Java
+
+// ─── PLAYER ──────────────────────────────────────────────────
+// Java Player.java:
+//   super(x, y, 32, 48, image, 4)  → frameW=32, frameH=48, 4 frames
+//   g.drawImage(frame, x, y, 96, 144, null) → drawn 96x144
+//   if (y < 180) y = 180;
+//   if (y > 470 - 144) y = 326;
+//   velocityY = -5 (up) / +5 (down)
+//   animTimer >= 12 → advance frame
+const player = {
+  x: 100,
+  y: 350,          // same as Java: new Player(100, 350, playerImage)
+  velocityY: 0,
+  currentFrame: 0,
+  animTimer: 0,
+  frameW: 32,
+  frameH: 48,
+  drawW: 96,       // same as Java drawImage
+  drawH: 144,      // same as Java drawImage
+
+  update() {
+    this.y += this.velocityY;
+    // exact same bounds as Java Player.java
+    if (this.y < 180) this.y = 180;
+    if (this.y > 326) this.y = 326;   // 470 - 144 = 326
+    // animate — same as Java: anitimer >= 12
+    this.animTimer++;
+    if (this.animTimer >= 12) {
+      this.currentFrame = (this.currentFrame + 1) % 4;
+      this.animTimer = 0;
+    }
+  },
+
+  draw() {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      images.player,
+      this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
+      this.x, this.y, this.drawW, this.drawH
+    );
+  }
+};
+
+// ─── STUDENTS ────────────────────────────────────────────────
+// Java Student.java:
+//   super(800, y, 32, 48, image, 4) → x starts at 800
+//   speed = 3 (normal) / 5 (fast)
+//   animTimer >= 12 (normal) / >= 6 (fast) → advance frame
+//   if (x < -100) alive = false
+//   g.drawImage(frame, x, y, 96, 144, null)
+let students = [];
+
+function spawnStudent(fast) {
+  students.push({
+    x: 800,          // same as Java: super(800, y, ...)
+    y: player.y,
+    speed: fast ? 5 : 3,
+    isFast: fast,
+    currentFrame: 0,
+    animTimer: 0,
+    alive: true,
+    frameW: 32,
+    frameH: 48,
+    drawW: 96,
+    drawH: 144,
+
+    update() {
+      this.x -= this.speed;
+      this.animTimer++;
+      const threshold = this.isFast ? 6 : 12;
+      if (this.animTimer >= threshold) {
+        this.currentFrame = (this.currentFrame + 1) % 4;
+        this.animTimer = 0;
+      }
+      if (this.x < -100) this.alive = false;  // same as Java
+    },
+
+    draw() {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        this.isFast ? images.student2 : images.student,
+        this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
+        this.x, this.y, this.drawW, this.drawH
+      );
+    }
+  });
+}
+
+// ─── MONSTER CANS ────────────────────────────────────────────
+// Java MonsterCan.java:
+//   super(x, y, 32, 48, image, 4)
+//   x -= 2  (scrolls left)
+//   animTimer >= 10 → advance frame
+//   if (x < -100) alive = false
+//   g.drawImage(frame, x, y, 48, 72, null)
+// Java GamePanel spawn:
+//   int randomY = 330 + (int)(Math.random() * 80)
+//   new MonsterCan(850, randomY, canImage)
+let cans = [];
+
+function spawnCan() {
+  const randomY = 330 + Math.floor(Math.random() * 80);  // exact same as Java
+  cans.push({
+    x: 850,           // same as Java: new MonsterCan(850, randomY, ...)
+    y: randomY,
+    currentFrame: 0,
+    animTimer: 0,
+    alive: true,
+    frameW: 32,
+    frameH: 48,
+    drawW: 48,        // same as Java: g.drawImage(frame, x, y, 48, 72, null)
+    drawH: 72,
+
+    update() {
+      this.x -= 2;    // same as Java: x -= 2
+      this.animTimer++;
+      if (this.animTimer >= 10) {   // same as Java: animTimer >= 10
+        this.currentFrame = (this.currentFrame + 1) % 4;
+        this.animTimer = 0;
+      }
+      if (this.x < -100) this.alive = false;  // same as Java
+    },
+
+    draw() {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        images.drink,
+        this.currentFrame * this.frameW, 0, this.frameW, this.frameH,
+        this.x, this.y, this.drawW, this.drawH
+      );
+    }
+  });
+}
+
+// ─── COLLISION ───────────────────────────────────────────────
+// Java isColliding():
+//   playerLeft  = player.getX() + 35
+//   playerRight = player.getX() + 61
+//   playerTop   = player.getY() + 125
+//   playerBottom= player.getY() + 144
+//   studentLeft = s.getX() + 35  etc.
+function isCollidingStudent(s) {
+  const pL = player.x + 35,  pR = player.x + 61;
+  const pT = player.y + 125, pB = player.y + 144;
+  const sL = s.x + 35,       sR = s.x + 61;
+  const sT = s.y + 125,      sB = s.y + 144;
+  return pL < sR && pR > sL && pT < sB && pB > sT;
+}
+
+// Java can collection check:
+//   player.getX() + 40 < can.getX() + 40
+//   player.getX() + 60 > can.getX() + 8
+//   player.getY() + 100 < can.getY() + 72
+//   player.getY() + 144 > can.getY() + 10
+function isCollidingCan(c) {
+  return player.x + 40 < c.x + 40
+      && player.x + 60 > c.x + 8
+      && player.y + 100 < c.y + 72
+      && player.y + 144 > c.y + 10;
+}
+
+// ─── RESTART ─────────────────────────────────────────────────
+// Java restartGame():
+//   gameOver=false, gameWon=false, gameStarted=true
+//   students.clear(), cans.clear()
+//   spawnTimer=0, spawnTimer2=0, canSpawnTimer=0
+//   monstersCollected=0, bgX=0
+//   new Player(100, 350, playerImage)
+function restartGame() {
+  gameOver = false;
+  gameWon = false;
+  gameStarted = true;
+  bgX = 0;
+  monstersCollected = 0;
+  spawnTimer = 0;
+  spawnTimer2 = 0;
+  canSpawnTimer = 0;
+  students = [];
+  cans = [];
+  player.x = 100;
+  player.y = 350;       // same as Java: new Player(100, 350, ...)
+  player.velocityY = 0;
+  player.currentFrame = 0;
+}
+
+// ─── INPUT ───────────────────────────────────────────────────
+// Java keyPressed:
+//   VK_SPACE → gameStarted = true
+//   VK_UP    → player.playerUp()   → velocityY = -5
+//   VK_DOWN  → player.playerDown() → velocityY = +5
+//   VK_R     → restartGame()
+// Java keyReleased:
+//   player.playerStop() → velocityY = 0
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !gameStarted) {
+    gameStarted = true;
+    startAudio();
+    e.preventDefault();
+  }
+  if (e.code === 'ArrowUp')   { player.velocityY = -5; e.preventDefault(); }
+  if (e.code === 'ArrowDown') { player.velocityY = +5; e.preventDefault(); }
+  if (e.code === 'KeyR' && (gameOver || gameWon)) restartGame();
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+    player.velocityY = 0;   // same as Java: playerStop()
+  }
+});
+
+// ─── DRAW HELPER ─────────────────────────────────────────────
+// Java: (800 - fm.stringWidth(text)) / 2
+function drawCentered(text, y, font, color) {
+  ctx.font = font;
+  ctx.fillStyle = color;
+  const w = ctx.measureText(text).width;
+  ctx.fillText(text, (W - w) / 2, y);
+}
+
+// ─── UPDATE ──────────────────────────────────────────────────
+function update() {
+  floatTimer++;
+  if (!gameStarted || gameOver || gameWon) return;
+
+  // Java timer lambda order:
+  // 1. player.update()
+  // 2. spawnTimer → add student every 120 ticks
+  // 3. spawnTimer2 → add student2 every 300 ticks
+  // 4. update students, remove dead
+  // 5. check collisions
+  // 6. canSpawnTimer → add can every 200 ticks
+  // 7. update cans, check collection
+  // 8. check win (monstersCollected >= 10)
+  // 9. bgX -= 2
+
+  player.update();
+
+  // spawn normal student every 120 ticks
+  spawnTimer++;
+  if (spawnTimer >= 120) {
+    spawnStudent(false);
+    spawnTimer = 0;
+  }
+
+  // spawn fast student every 300 ticks
+  spawnTimer2++;
+  if (spawnTimer2 >= 300) {
+    spawnStudent(true);
+    spawnTimer2 = 0;
+  }
+
+  // update students
+  for (let i = students.length - 1; i >= 0; i--) {
+    students[i].update();
+    if (!students[i].alive) {
+      students.splice(i, 1);
+    }
+  }
+
+  // check student collisions
+  for (let i = 0; i < students.length; i++) {
+    if (isCollidingStudent(students[i])) {
+      gameOver = true;
+      return;
+    }
+  }
+
+  // spawn can every 200 ticks
+  canSpawnTimer++;
+  if (canSpawnTimer >= 200) {
+    spawnCan();
+    canSpawnTimer = 0;
+  }
+
+  // update cans and check collection
+  for (let i = cans.length - 1; i >= 0; i--) {
+    cans[i].update();
+    if (!cans[i].alive) {
+      cans.splice(i, 1);
+      continue;
+    }
+    if (isCollidingCan(cans[i])) {
+      monstersCollected++;
+      cans.splice(i, 1);
+      playAudio('./monster.wav', false, 0.8);
+    }
+  }
+
+  // win condition: monstersCollected >= 10
+  if (monstersCollected >= 10) {
+    gameWon = true;
+    return;
+  }
+
+  // scroll background
+  bgX -= 2;
+  if (bgX <= -800) bgX = 0;
+}
+
+// ─── DRAW ────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.imageSmoothingEnabled = false;
+
+  // 1. BACKGROUND — same as Java:
+  // g2d.drawImage(background, bgX, 0, 800, 600, null)
+  // g2d.drawImage(background, bgX + 800, 0, 800, 600, null)
+  ctx.drawImage(images.background, bgX, 0, 800, 600);
+  ctx.drawImage(images.background, bgX + 800, 0, 800, 600);
+
+  // 2. STUDENTS BEHIND PLAYER
+  students.forEach(s => { if (s.y < player.y) s.draw(); });
+
+  // 3. CANS
+  cans.forEach(c => c.draw());
+
+  // 4. PLAYER
+  player.draw();
+
+  // 5. STUDENTS IN FRONT
+  students.forEach(s => { if (s.y >= player.y) s.draw(); });
+
+  // 6. PROGRESS BAR — same as Java:
+  // fillRect(10, 10, 204, 24)
+  // fillRect(12, 12, (int)(200*(monstersCollected/10.0)), 20)
+  // drawString("Monster: " + monstersCollected + "/10", 220, 27)
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(10, 10, 204, 24);
+  ctx.fillStyle = 'rgb(0,180,0)';
+  ctx.fillRect(12, 12, Math.floor(200 * (monstersCollected / 10)), 20);
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText('Monster: ' + monstersCollected + '/10', 220, 27);
+
+  // 7. PURDUE LOGO FLOATING TOP CENTER
+  if (images.purdue.complete) {
+    const floatY = Math.sin(floatTimer * 0.05) * 6;
+    ctx.drawImage(images.purdue, 360, 5 + floatY, 80, 80);
+  }
+
+  // 8. START SCREEN — same as Java paintComponent
+  if (!gameStarted) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, W, H);
+    if (images.purdue.complete) {
+      const floatY = Math.sin(floatTimer * 0.05) * 6;
+      ctx.drawImage(images.purdue, 350, 50 + floatY, 100, 100);
+    }
+    drawCentered('CAREER', 210, 'bold 80px Arial', '#ffcc00');
+    drawCentered('DOOM',   300, 'bold 80px Arial', '#ff3333');
+    drawCentered('Dodge Resumes. Collect Monster. Survive!', 350, '20px Arial', 'white');
+    drawCentered('UP / DOWN arrows to move', 395, '16px Arial', '#cccccc');
+    drawCentered('Press SPACE to Start', 455, 'bold 22px Arial', '#ffcc00');
+  }
+
+  // 9. GAME OVER SCREEN — same as Java
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(180,0,0,0.85)';
+    ctx.fillRect(150, 200, 500, 200);
+    ctx.fillStyle = 'rgb(220,0,0)';
+    ctx.fillRect(150, 200, 500, 4);
+    ctx.fillRect(150, 396, 500, 4);
+    drawCentered('GAME OVER', 295, 'bold 65px Arial', 'white');
+    drawCentered('You got buried in resumes!', 340, '22px Arial', 'rgb(255,200,200)');
+    drawCentered('Press R to Restart', 380, 'bold 22px Arial', 'yellow');
+  }
+
+  // 10. WIN SCREEN — same as Java
+  if (gameWon) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,200,0,0.85)';
+    ctx.fillRect(150, 180, 500, 220);
+    drawCentered('YOU WIN!', 270, 'bold 60px Arial', 'black');
+    drawCentered('YOU REACHED YOUR TENT !! NO MORE RESUMES', 320, '22px Arial', 'white');
+    drawCentered('Press R to Play Again', 370, 'bold 20px Arial', 'yellow');
+  }
+}
+
+// ─── GAME LOOP ───────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Wait for all images to load then start
+let loaded = 0;
+const total = Object.keys(images).length;
+Object.values(images).forEach(img => {
+  img.onload  = () => { if (++loaded >= total) loop(); };
+  img.onerror = () => { if (++loaded >= total) loop(); };
+});
+// Fallback: start after 2 seconds even if images fail
+setTimeout(() => { if (loaded < total) loop(); }, 2000);
+</script>
+</body>
+</html>
