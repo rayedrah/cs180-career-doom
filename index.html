@@ -423,7 +423,7 @@ function update() {
   for (let i = 0; i < students.length; i++) {
     if (isCollidingStudent(students[i])) {
       gameOver = true;
-      Btn.style.display = 'block';
+      restartBtn.style.display = 'block';
       return;
     }
   }
