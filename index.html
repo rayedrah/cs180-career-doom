@@ -125,7 +125,7 @@
   </div>
 
   <button id="start-btn">▶ &nbsp;START</button>
-  <button id="restart-btn">↻ &nbsp;RESTART</button>
+  <button id="restart-btn"> &nbsp;RESTART</button>
 </div>
 
 <script>
@@ -249,7 +249,7 @@ function playAudio(src, loop, volume) {
 function startAudio() {
   if (audioStarted) return;
   audioStarted = true;
-  playAudio('./RESUME.mp3', true, 0.3);
+  playAudio('./RESUME.wav', true, 0.3);
   playAudio('./scream.wav', true, 0.12);
 }
 
@@ -423,7 +423,7 @@ function update() {
   for (let i = 0; i < students.length; i++) {
     if (isCollidingStudent(students[i])) {
       gameOver = true;
-      restartBtn.style.display = 'block';
+      Btn.style.display = 'block';
       return;
     }
   }
